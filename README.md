@@ -1,5 +1,5 @@
 # zeus
-converts between commented python and ipynb
+converts back and forth between commented python and ipynb
 
 ## Python
 ```py
