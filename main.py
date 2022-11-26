@@ -30,10 +30,21 @@ id_count = 0
 
 class Block:
     def __init__(self, is_markdown, lines):
-        self.type = "markdown" if is_markdown else "code"
+        if type(is_markdown) == bool:
+            self.type = "markdown" if is_markdown else "code"
+        else:
+            self.type = is_markdown
+
         self.lines = [*lines]
+
         if self.type == "markdown":
-            self.lines = [l[1:] for l in self.lines]
+            self.lines = [line[1:] for line in self.lines]
+
+        if self.lines != [] and len(self.lines[0].strip()) == 0:
+            self.lines = self.lines[1:]
+
+        if self.lines != [] and len(self.lines[-1].strip()) == 0:
+            self.lines = self.lines[:-1]
 
     def to_jupyter(self):
         global id_count
@@ -65,13 +76,44 @@ class Block:
             case "code":
                 return f"Code {{\n{line_repr}\n}}"
 
-# TODO: This can be improved, line comments without a space
-# before the code block should not be converted to markdown
+# if there is a space between comments
+# it makes a new block
+# - bullet 1
+
+# line comments without a space before the code
+# stay in the code block
 def parse_code(code):
     lines = code.split('\n')
-    blocks = it.groupby(lines, lambda line: len(line := line.strip()) == 0 or line[0] == '#')
 
-    blocks = (Block(*args) for args in blocks)
+    def classify_line(line):
+        line = line.strip()
+        if len(line) > 0 and line[0] == '#':
+            return 'markdown'
+        else:
+            return 'code'
+
+    blocks = it.groupby(lines, classify_line)
+    blocks = [(t, [*l]) for t, l in blocks]
+
+    squished_blocks = []
+    i = 0
+    while i < len(blocks) - 1:
+        (t1, l1) = blocks[i]
+        (t2, l2) = blocks[i + 1]
+
+        l1, l2 = [*l1], [*l2]
+
+        if t1 == 'markdown' and t2 == 'code' and not (l2 == [] or len(l2[0].strip()) == 0):
+            squished_blocks.append((t2, l1 + l2))
+            i += 2
+        else:
+            squished_blocks.append((t1, l1))
+            i += 1
+
+    if i != len(blocks):
+        squished_blocks.append(blocks[-1])
+
+    blocks = (Block(*args) for args in squished_blocks)
     blocks = (b for b in blocks if b.lines not in [[], ['']])
     return blocks
 
