@@ -54,6 +54,9 @@ class Block:
                         "outputs": [],
                         "source": source }
 
+    def to_py(self):
+        return ''.join(self.lines)
+
     def __repr__(self):
         line_repr = '\n'.join(self.lines)
         match self.type:
@@ -62,7 +65,7 @@ class Block:
             case "code":
                 return f"Code {{\n{line_repr}\n}}"
 
-# This can be improved, line comments without a space
+# TODO: This can be improved, line comments without a space
 # before the code block should not be converted to markdown
 def parse_code(code):
     lines = code.split('\n')
@@ -72,10 +75,18 @@ def parse_code(code):
     blocks = (b for b in blocks if b.lines not in [[], ['']])
     return blocks
 
+def parse_jupyter(source):
+    data = json.loads(source)
+    blocks = [Block(block['cell_type'] == 'markdown', block['source']) for block in data['cells']]
+    return blocks
+
 def to_jupyter(blocks):
     cells = [block.to_jupyter() for block in blocks]
     toplevel = {'cells': cells, 'metadata': metadata, 'nbformat': 4, 'nbformat_minor': 5}
     return json.dumps(toplevel, indent=1)
+
+def to_py(blocks):
+    return '\n\n'.join(block.to_py() for block in blocks)
 
 if __name__ == "__main__":
     match sys.argv:
@@ -84,4 +95,9 @@ if __name__ == "__main__":
                 parsed = parse_code(inp.read())
                 jupytered = to_jupyter(parsed)
                 print(jupytered)
+        case [_, '--from-jupyter', filename]:
+            with open(filename, 'r') as inp:
+                parsed = parse_jupyter(inp.read())
+                py = to_py(parsed)
+                print(py)
         case _: print("incorrect usage")
